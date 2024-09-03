@@ -22,8 +22,6 @@ function onFormSubmit(e) {
   // Update Sheet
   updateSheet(e.range, leaveId, approvalStatus, leaveDays);
 
-  updateLeaveBalanceSheet(employeeName, employeeEmail, leaveType, leaveDays);
-
   var sheeturl = 'https://docs.google.com/spreadsheets/d/1WVxHbl3p_hzn_77IasYFAyIJiwV0g6DAKU7DxVbxPOw/edit?usp=sharing';
 
   // Send email notification to HR
@@ -137,41 +135,3 @@ function sendApprovalStatusEmail(employeeEmail, employeeName, approvalStatus, le
     htmlBody: body
   });
 }
-
-function updateLeaveBalanceSheet(employeeName, employeeEmail, leaveType, leaveDays) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var leaveBalanceSheet = ss.getSheetByName('Leave Balances'); // Change to your sheet name
-  var data = leaveBalanceSheet.getDataRange().getValues();
-  
-  // Find the row with the matching Employee Name and Email
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === employeeName && data[i][1] === employeeEmail) {
-      var leaveTypeIndex = -1;
-      
-      // Find the column for the leave type
-      for (var j = 2; j < data[i].length; j++) {
-        if (data[0][j] === leaveType) { // Assuming header contains Leave Types
-          leaveTypeIndex = j;
-          break;
-        }
-      }
-      
-      if (leaveTypeIndex !== -1) {
-        var leaveTotal = data[i][leaveTypeIndex];
-        var leaveUsed = data[i][leaveTypeIndex + 1] || 0; // Assuming Leave Used is the next column
-        var leaveBalance = leaveTotal - (leaveUsed + leaveDays);
-
-        // Update Leave Used and Leave Balance
-        leaveBalanceSheet.getRange(i + 1, leaveTypeIndex + 1).setValue(leaveUsed + leaveDays);
-        leaveBalanceSheet.getRange(i + 1, leaveTypeIndex + 2).setValue(leaveBalance); // Assuming Leave Balance is the next column
-      } else {
-        Logger.log('Leave Type column not found for: ' + leaveType);
-      }
-      
-      return; // Exit after updating the row
-    }
-  }
-
-  Logger.log('Employee not found: ' + employeeName + ', ' + employeeEmail);
-}
-
