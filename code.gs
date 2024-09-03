@@ -19,23 +19,14 @@ function onFormSubmit(e) {
   // Generate a random Leave ID
   var leaveId = generateRandomLeaveId();
 
-  // Log the data (for debugging purposes)
-  Logger.log('Employee Name: ' + employeeName);
-  Logger.log('Employee Email: ' + employeeEmail);
-  Logger.log('Leave Type: ' + leaveType);
-  Logger.log('Leave Start Date: ' + leaveStartDate);
-  Logger.log('Leave End Date: ' + leaveEndDate);
-  Logger.log('Reason: ' + reason);
-  Logger.log('Leave Days: ' + leaveDays);
-  Logger.log('Approval Status: ' + approvalStatus);
-  Logger.log('Leave ID: ' + leaveId);
-
   // Update Sheet
   updateSheet(e.range, leaveId, approvalStatus, leaveDays);
 
+  updateLeaveBalanceSheet(employeeName, employeeEmail, leaveType, leaveDays);
+
   var sheeturl = 'https://docs.google.com/spreadsheets/d/1WVxHbl3p_hzn_77IasYFAyIJiwV0g6DAKU7DxVbxPOw/edit?usp=sharing';
 
-  // Example: Send email notification to HR
+  // Send email notification to HR
   var hremail = 'terip99864@janfab.com';
   var hrsubject = 'New Leave Request from ' + employeeName;
   var hrbody = '<h2>New Leave Request</h2>' +
@@ -53,7 +44,7 @@ function onFormSubmit(e) {
     htmlBody: hrbody
   });
 
-  // Example: Send email notification to employee
+  // Send email notification to employee
   var subject = 'New Leave Request Submitted';
   var body = '<p>Dear ' + employeeName + ',</p>' +
              '<p>Your leave request has been submitted. Please wait for approval.</p>' +
@@ -80,10 +71,11 @@ function generateRandomLeaveId() {
 
 // Function to update the Google Sheet
 function updateSheet(range, leaveId, approvalStatus, leaveDays) {
+  //  Get the sheet, range, and values related
   var sheet = range.getSheet();
   var row = range.getRow();
   
-  // Assume Leave ID is in the 9th column and Approval Status is in the 10th column
+  // Set value for sheet and column
   sheet.getRange(row, 8).setValue(leaveDays);
   sheet.getRange(row, 9).setValue(approvalStatus);
   sheet.getRange(row, 10).setValue(leaveId);
@@ -103,17 +95,23 @@ function onEdit(e) {
     var data = sheet.getRange(editedRow, 1, 1, sheet.getLastColumn()).getValues()[0];
 
     // Extract employee email and other details from the row
-    var employeeName = data[1]; // Assuming Employee Name is in column 2
-    var employeeEmail = data[2]; // Assuming Employee Email is in column 3
-    var leaveType = data[3]; // Assuming Leave Type is in column 4
-    var leaveStartDate = data[4]; // Assuming Leave Start Date is in column 5
-    var leaveEndDate = data[5]; // Assuming Leave End Date is in column 6
-    var reason = data[6]; // Assuming Reason is in column 7
-    var leaveDays = data[7]; // Assuming Leave Days is in column 8
-    var leaveId = data[9]; // Assuming Leave ID is in column 10
+    var employeeName = data[1]; // Employee Name is in column 2
+    var employeeEmail = data[2]; // Employee Email is in column 3
+    var leaveType = data[3]; // Leave Type is in column 4
+    var leaveStartDate = data[4]; // Leave Start Date is in column 5
+    var leaveEndDate = data[5]; // Leave End Date is in column 6
+    var reason = data[6]; // Reason is in column 7
+    var leaveDays = data[7]; // Leave Days is in column 8
+    var leaveId = data[9]; // Leave ID is in column 10
 
     // Send email notification to the employee
     sendApprovalStatusEmail(employeeEmail, employeeName, approvalStatus, leaveType, leaveStartDate, leaveEndDate, reason, leaveDays, leaveId);
+
+    var userEmail = Session.getActiveUser().getEmail();
+  
+    // Assume "Last Modified By" is in the 11th column
+    var lastModifiedColumn = 11; 
+    sheet.getRange(editedRow, lastModifiedColumn).setValue(userEmail);
   }
 }
 
@@ -139,3 +137,41 @@ function sendApprovalStatusEmail(employeeEmail, employeeName, approvalStatus, le
     htmlBody: body
   });
 }
+
+function updateLeaveBalanceSheet(employeeName, employeeEmail, leaveType, leaveDays) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var leaveBalanceSheet = ss.getSheetByName('Leave Balances'); // Change to your sheet name
+  var data = leaveBalanceSheet.getDataRange().getValues();
+  
+  // Find the row with the matching Employee Name and Email
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0] === employeeName && data[i][1] === employeeEmail) {
+      var leaveTypeIndex = -1;
+      
+      // Find the column for the leave type
+      for (var j = 2; j < data[i].length; j++) {
+        if (data[0][j] === leaveType) { // Assuming header contains Leave Types
+          leaveTypeIndex = j;
+          break;
+        }
+      }
+      
+      if (leaveTypeIndex !== -1) {
+        var leaveTotal = data[i][leaveTypeIndex];
+        var leaveUsed = data[i][leaveTypeIndex + 1] || 0; // Assuming Leave Used is the next column
+        var leaveBalance = leaveTotal - (leaveUsed + leaveDays);
+
+        // Update Leave Used and Leave Balance
+        leaveBalanceSheet.getRange(i + 1, leaveTypeIndex + 1).setValue(leaveUsed + leaveDays);
+        leaveBalanceSheet.getRange(i + 1, leaveTypeIndex + 2).setValue(leaveBalance); // Assuming Leave Balance is the next column
+      } else {
+        Logger.log('Leave Type column not found for: ' + leaveType);
+      }
+      
+      return; // Exit after updating the row
+    }
+  }
+
+  Logger.log('Employee not found: ' + employeeName + ', ' + employeeEmail);
+}
+
