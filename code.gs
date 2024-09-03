@@ -2,13 +2,13 @@ function onFormSubmit(e) {
   // Get the submitted responses from the event object
   var responses = e.values;
 
-  // Extract the responses into variables
-  var employeeName = responses[1]; // Employee Name
-  var employeeEmail = responses[2]; // Employee Email
-  var leaveType = responses[3]; // Leave Type
-  var leaveStartDate = new Date(responses[4]); // Leave Start Date
-  var leaveEndDate = new Date(responses[5]); // Leave End Date
-  var reason = responses[6]; // Reason
+  // Extract and validate responses
+  var employeeName = responses[1] || 'N/A'; // Employee Name
+  var employeeEmail = responses[2] || 'N/A'; // Employee Email
+  var leaveType = responses[3] || 'N/A'; // Leave Type
+  var leaveStartDate = parseDate(responses[4]); // Leave Start Date
+  var leaveEndDate = parseDate(responses[5]); // Leave End Date
+  var reason = responses[6] || 'N/A'; // Reason
 
   // Calculate leave days
   var leaveDays = calculateLeaveDays(leaveStartDate, leaveEndDate);
@@ -29,8 +29,8 @@ function onFormSubmit(e) {
   var hrsubject = 'New Leave Request from ' + employeeName;
   var hrbody = '<h2>New Leave Request</h2>' +
                '<p><strong>Leave Type:</strong> ' + leaveType + '</p>' +
-               '<p><strong>Start Date:</strong> ' + leaveStartDate.toDateString() + '</p>' +
-               '<p><strong>End Date:</strong> ' + leaveEndDate.toDateString() + '</p>' +
+               '<p><strong>Start Date:</strong> ' + formatDate(leaveStartDate) + '</p>' +
+               '<p><strong>End Date:</strong> ' + formatDate(leaveEndDate) + '</p>' +
                '<p><strong>Reason:</strong> ' + reason + '</p>' +
                '<p><strong>Leave Days:</strong> ' + leaveDays + '</p>' +
                '<p><strong>Leave ID:</strong> ' + leaveId + '</p>' +
@@ -56,10 +56,31 @@ function onFormSubmit(e) {
   });
 }
 
+// Function to parse date strings
+function parseDate(dateString) {
+  var date = new Date(dateString);
+  return isNaN(date.getTime()) ? 'Invalid Date' : date;
+}
+
+// Function to format date as a readable string
+function formatDate(date) {
+  if (date instanceof Date && !isNaN(date.getTime())) {
+    return date.toDateString(); // Format as readable string
+  }
+  return 'Invalid Date';
+}
+
 // Function to calculate leave days
 function calculateLeaveDays(startDate, endDate) {
+  if (!(startDate instanceof Date) || isNaN(startDate.getTime()) ||
+      !(endDate instanceof Date) || isNaN(endDate.getTime())) {
+    return 'Invalid Dates';
+  }
+
   var oneDay = 24 * 60 * 60 * 1000; // milliseconds in a day
-  return Math.round(Math.abs((endDate - startDate) / oneDay)) + 1; // inclusive of both start and end date
+  var diffDays = Math.round(Math.abs((endDate - startDate) / oneDay)) + 1; // inclusive of both start and end date
+  
+  return diffDays;
 }
 
 // Function to generate a random Leave ID
@@ -73,11 +94,12 @@ function updateSheet(range, leaveId, approvalStatus, leaveDays) {
   var row = range.getRow();
   
   // Update Leave ID, Approval Status, Leave Days
-  sheet.getRange(row, 8).setValue(leaveDays);
-  sheet.getRange(row, 9).setValue(approvalStatus);
-  sheet.getRange(row, 10).setValue(leaveId);
-  sheet.getRange(row, 12).setValue('Pending'); // HR Approval
-  sheet.getRange(row, 13).setValue(''); // HR Justification
+  sheet.getRange(row, 2).setValue(leaveId); // Leave ID
+  sheet.getRange(row, 9).setValue(leaveDays); // Leave Days
+  sheet.getRange(row, 10).setValue('Pending'); // HR Approval
+  sheet.getRange(row, 11).setValue(''); // HR Justification
+  sheet.getRange(row, 12).setValue(approvalStatus); // Approval Status
+  sheet.getRange(row, 13).setValue(''); // Last Modified (will be set in onEdit)
 }
 
 function onEdit(e) {
@@ -86,22 +108,22 @@ function onEdit(e) {
   var editedRow = range.getRow();
   var editedColumn = range.getColumn();
   
-  // Check if the edited column is the HR Approval column (column 12)
-  var hrApprovalColumn = 12;
+  // Check if the edited column is the HR Approval column (column 10)
+  var hrApprovalColumn = 10;
   if (editedColumn === hrApprovalColumn) {
     var hrApproval = range.getValue();
     var data = sheet.getRange(editedRow, 1, 1, sheet.getLastColumn()).getValues()[0];
 
     // Extract employee email and other details from the row
-    var employeeName = data[1]; // Employee Name
-    var employeeEmail = data[2]; // Employee Email
-    var leaveType = data[3]; // Leave Type
-    var leaveStartDate = data[4]; // Leave Start Date
-    var leaveEndDate = data[5]; // Leave End Date
-    var reason = data[6]; // Reason
-    var leaveDays = data[7]; // Leave Days
-    var leaveId = data[9]; // Leave ID
-    var hrJustification = data[12]; // HR Justification
+    var employeeName = data[2]; // Employee Name
+    var employeeEmail = data[3]; // Employee Email
+    var leaveType = data[4]; // Leave Type
+    var leaveStartDate = data[5]; // Leave Start Date
+    var leaveEndDate = data[6]; // Leave End Date
+    var reason = data[7]; // Reason
+    var leaveDays = data[8]; // Leave Days
+    var leaveId = data[1]; // Leave ID
+    var hrJustification = data[10]; // HR Justification
 
     // Send email notification to the supervisor if HR Approval is 'Approved'
     if (hrApproval === 'Approved') {
@@ -110,13 +132,14 @@ function onEdit(e) {
       var body = '<p>Dear Supervisor,</p>' +
                  '<p>The following leave request has been approved by HR:</p>' +
                  '<ul>' +
+                 '<li><strong>Leave ID:</strong> ' + leaveId + '</li>' +
                  '<li><strong>Employee Name:</strong> ' + employeeName + '</li>' +
+                 '<li><strong>Employee Email:</strong> ' + employeeEmail + '</li>' +
                  '<li><strong>Leave Type:</strong> ' + leaveType + '</li>' +
                  '<li><strong>Start Date:</strong> ' + new Date(leaveStartDate).toDateString() + '</li>' +
                  '<li><strong>End Date:</strong> ' + new Date(leaveEndDate).toDateString() + '</li>' +
                  '<li><strong>Reason:</strong> ' + reason + '</li>' +
                  '<li><strong>Leave Days:</strong> ' + leaveDays + '</li>' +
-                 '<li><strong>Leave ID:</strong> ' + leaveId + '</li>' +
                  '<li><strong>HR Justification:</strong> ' + hrJustification + '</li>' +
                  '</ul>' +
                  '<p>Thank you,</p>' +
@@ -128,8 +151,8 @@ function onEdit(e) {
       });
     }
 
-    // Assume "Last Modified By" is in the 11th column
-    var lastModifiedColumn = 11;
+    // Update "Last Modified By" column (column 13)
+    var lastModifiedColumn = 13;
     var userEmail = Session.getActiveUser().getEmail();
     sheet.getRange(editedRow, lastModifiedColumn).setValue(userEmail);
   }
