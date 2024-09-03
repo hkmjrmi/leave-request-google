@@ -3,12 +3,12 @@ function onFormSubmit(e) {
   var responses = e.values;
 
   // Extract the responses into variables
-  var employeeName = responses[1];
-  var employeeEmail = responses[2];
-  var leaveType = responses[3];
-  var leaveStartDate = new Date(responses[4]);
-  var leaveEndDate = new Date(responses[5]);
-  var reason = responses[6];
+  var employeeName = responses[1]; // Employee Name
+  var employeeEmail = responses[2]; // Employee Email
+  var leaveType = responses[3]; // Leave Type
+  var leaveStartDate = new Date(responses[4]); // Leave Start Date
+  var leaveEndDate = new Date(responses[5]); // Leave End Date
+  var reason = responses[6]; // Reason
 
   // Calculate leave days
   var leaveDays = calculateLeaveDays(leaveStartDate, leaveEndDate);
@@ -64,74 +64,73 @@ function calculateLeaveDays(startDate, endDate) {
 
 // Function to generate a random Leave ID
 function generateRandomLeaveId() {
-  return Math.floor(Math.random() * 100); // Generates a random number between 0 and 999999
+  return Math.floor(Math.random() * 1000); // Generates a random number between 0 and 999
 }
 
 // Function to update the Google Sheet
 function updateSheet(range, leaveId, approvalStatus, leaveDays) {
-  //  Get the sheet, range, and values related
   var sheet = range.getSheet();
   var row = range.getRow();
   
-  // Set value for sheet and column
+  // Update Leave ID, Approval Status, Leave Days
   sheet.getRange(row, 8).setValue(leaveDays);
   sheet.getRange(row, 9).setValue(approvalStatus);
   sheet.getRange(row, 10).setValue(leaveId);
+  sheet.getRange(row, 12).setValue('Pending'); // HR Approval
+  sheet.getRange(row, 13).setValue(''); // HR Justification
 }
 
 function onEdit(e) {
-  // Get the sheet, range, and values related to the edit event
   var sheet = e.source.getActiveSheet();
   var range = e.range;
   var editedRow = range.getRow();
   var editedColumn = range.getColumn();
   
-  // Check if the edited column is the Approval Status column (column 9)
-  var approvalStatusColumn = 9; // Adjust the index if Approval Status is in a different column
-  if (editedColumn === approvalStatusColumn) {
-    var approvalStatus = range.getValue();
+  // Check if the edited column is the HR Approval column (column 12)
+  var hrApprovalColumn = 12;
+  if (editedColumn === hrApprovalColumn) {
+    var hrApproval = range.getValue();
     var data = sheet.getRange(editedRow, 1, 1, sheet.getLastColumn()).getValues()[0];
 
     // Extract employee email and other details from the row
-    var employeeName = data[1]; // Employee Name is in column 2
-    var employeeEmail = data[2]; // Employee Email is in column 3
-    var leaveType = data[3]; // Leave Type is in column 4
-    var leaveStartDate = data[4]; // Leave Start Date is in column 5
-    var leaveEndDate = data[5]; // Leave End Date is in column 6
-    var reason = data[6]; // Reason is in column 7
-    var leaveDays = data[7]; // Leave Days is in column 8
-    var leaveId = data[9]; // Leave ID is in column 10
+    var employeeName = data[1]; // Employee Name
+    var employeeEmail = data[2]; // Employee Email
+    var leaveType = data[3]; // Leave Type
+    var leaveStartDate = data[4]; // Leave Start Date
+    var leaveEndDate = data[5]; // Leave End Date
+    var reason = data[6]; // Reason
+    var leaveDays = data[7]; // Leave Days
+    var leaveId = data[9]; // Leave ID
+    var hrJustification = data[12]; // HR Justification
 
-    // Send email notification to the employee
-    sendApprovalStatusEmail(employeeEmail, employeeName, approvalStatus, leaveType, leaveStartDate, leaveEndDate, reason, leaveDays, leaveId);
+    // Send email notification to the supervisor if HR Approval is 'Approved'
+    if (hrApproval === 'Approved') {
+      var supervisorEmail = 'vidiv39862@ploncy.com'; // Replace with actual supervisor email
+      var subject = 'Leave Request Approved';
+      var body = '<p>Dear Supervisor,</p>' +
+                 '<p>The following leave request has been approved by HR:</p>' +
+                 '<ul>' +
+                 '<li><strong>Employee Name:</strong> ' + employeeName + '</li>' +
+                 '<li><strong>Leave Type:</strong> ' + leaveType + '</li>' +
+                 '<li><strong>Start Date:</strong> ' + new Date(leaveStartDate).toDateString() + '</li>' +
+                 '<li><strong>End Date:</strong> ' + new Date(leaveEndDate).toDateString() + '</li>' +
+                 '<li><strong>Reason:</strong> ' + reason + '</li>' +
+                 '<li><strong>Leave Days:</strong> ' + leaveDays + '</li>' +
+                 '<li><strong>Leave ID:</strong> ' + leaveId + '</li>' +
+                 '<li><strong>HR Justification:</strong> ' + hrJustification + '</li>' +
+                 '</ul>' +
+                 '<p>Thank you,</p>' +
+                 '<p>HR Team</p>';
+      MailApp.sendEmail({
+        to: supervisorEmail,
+        subject: subject,
+        htmlBody: body
+      });
+    }
 
-    var userEmail = Session.getActiveUser().getEmail();
-  
     // Assume "Last Modified By" is in the 11th column
-    var lastModifiedColumn = 11; 
+    var lastModifiedColumn = 11;
+    var userEmail = Session.getActiveUser().getEmail();
     sheet.getRange(editedRow, lastModifiedColumn).setValue(userEmail);
   }
-}
-
-function sendApprovalStatusEmail(employeeEmail, employeeName, approvalStatus, leaveType, leaveStartDate, leaveEndDate, reason, leaveDays, leaveId) {
-  var subject = 'Leave Request Status Updated';
-  var body = '<p>Dear ' + employeeName + ',</p>' +
-             '<p>Your leave request has been updated. Please find the details below:</p>' +
-             '<ul>' +
-             '<li><strong>Leave Type:</strong> ' + leaveType + '</li>' +
-             '<li><strong>Start Date:</strong> ' + new Date(leaveStartDate).toDateString() + '</li>' +
-             '<li><strong>End Date:</strong> ' + new Date(leaveEndDate).toDateString() + '</li>' +
-             '<li><strong>Reason:</strong> ' + reason + '</li>' +
-             '<li><strong>Leave Days:</strong> ' + leaveDays + '</li>' +
-             '<li><strong>Leave ID:</strong> ' + leaveId + '</li>' +
-             '<li><strong>Approval Status:</strong> ' + approvalStatus + '</li>' +
-             '</ul>' +
-             '<p>Thank you,</p>' +
-             '<p>HR Team</p>';
-
-  MailApp.sendEmail({
-    to: employeeEmail,
-    subject: subject,
-    htmlBody: body
-  });
 }
